@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YBC - Enterprise POS & AI Copilot</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f8fafc; }
+        
+        .view { display: none; opacity: 0; transition: opacity 0.3s ease-in-out; }
+        .view.active { display: block; opacity: 1; }
+        
+        .recording { animation: pulse 1s infinite; background: #ef4444 !important; border-color: #ef4444 !important; color: white !important;}
+        @keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+        
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .glass-panel { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3); }
+        
+        .toast-enter { transform: translateX(100%); opacity: 0; }
+        .toast-active { transform: translateX(0); opacity: 1; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        
+        .onboard-enter { opacity: 0; transform: scale(0.95); }
+        .onboard-active { opacity: 1; transform: scale(1); transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden text-slate-800 antialiased">
+
+    <div id="toast-container" class="fixed top-6 right-6 z-[9999] flex flex-col gap-3"></div>
+
+    <!-- LAYAR PENGENALAN (ONBOARDING) -->
+    <div id="onboarding-screen" class="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[99999] hidden items-center justify-center">
+        <div id="onboard-card" class="bg-white p-10 rounded-3xl w-full max-w-2xl shadow-2xl relative overflow-hidden onboard-enter">
+            <div class="absolute -top-20 -right-20 w-40 h-40 bg-blue-100 rounded-full mix-blend-multiply filter blur-xl opacity-70"></div>
+            <div class="absolute -bottom-20 -left-20 w-40 h-40 bg-indigo-100 rounded-full mix-blend-multiply filter blur-xl opacity-70"></div>
+            
+            <button onclick="toggleLang()" class="absolute top-6 right-6 z-20 bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-xl font-bold transition flex items-center gap-2">
+                <span id="lang-icon-onboard">🇮🇩 ID</span>
+            </button>
+
+            <div class="relative z-10 text-center">
+                <div class="w-20 h-20 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl mx-auto flex items-center justify-center text-4xl shadow-lg mb-6">🚀</div>
+                
+                <h1 class="text-3xl font-black text-slate-900 mb-4" data-i18n="on_title">Selamat Datang di YBC ePOS!</h1>
+                <p class="text-slate-600 font-medium mb-8 leading-relaxed" data-i18n="on_desc">Sistem Kasir Enterprise modern yang terintegrasi dengan Kecerdasan Buatan (AI) dan dukungan Ekstensi Add-on untuk operasional bisnis Anda.</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 text-left">
+                    <div class="p-5 bg-slate-50 border border-slate-100 rounded-2xl">
+                        <div class="text-2xl mb-2">🤖</div>
+                        <h3 class="font-bold text-sm text-slate-800 mb-1" data-i18n="on_f1_t">AI Copilot</h3>
+                        <p class="text-xs text-slate-500" data-i18n="on_f1_d">Asisten AI yang siap mengelola data Excel & email darurat.</p>
+                    </div>
+                    <div class="p-5 bg-slate-50 border border-slate-100 rounded-2xl">
+                        <div class="text-2xl mb-2">🧩</div>
+                        <h3 class="font-bold text-sm text-slate-800 mb-1" data-i18n="on_f2_t">Sistem Add-on</h3>
+                        <p class="text-xs text-slate-500" data-i18n="on_f2_d">Pasang ekstensi HTML (Kalkulator, dll) yang bisa melayang.</p>
+                    </div>
+                    <div class="p-5 bg-slate-50 border border-slate-100 rounded-2xl">
+                        <div class="text-2xl mb-2">🌐</div>
+                        <h3 class="font-bold text-sm text-slate-800 mb-1" data-i18n="on_f3_t">Mode Hibrida</h3>
+                        <p class="text-xs text-slate-500" data-i18n="on_f3_d">Berjalan di Browser maupun sebagai Aplikasi Desktop / CBT.</p>
+                    </div>
+                </div>
+
+                <button onclick="closeOnboarding()" class="w-full bg-slate-900 hover:bg-black text-white py-4 rounded-xl font-bold shadow-lg shadow-slate-900/20 transition text-lg" data-i18n="btn_start_app">
+                    Mulai Gunakan Sistem
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AUTH SCREEN -->
+    <div id="auth-screen" class="fixed inset-0 bg-slate-900 z-50 flex items-center justify-center bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1497366216548-37526070297c?ixlib=rb-1.2.1&auto=format&fit=crop&w=1950&q=80');">
+        <div class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm"></div>
+        
+        <button onclick="toggleLang()" class="absolute top-6 right-6 z-20 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white px-4 py-2 rounded-xl font-bold transition flex items-center gap-2">
+            <span id="lang-icon-login">🇮🇩 ID</span>
+        </button>
+
+        <div class="glass-panel w-[420px] p-10 rounded-[2rem] shadow-2xl relative z-10 text-center">
+            <img src="Black Delivery & Transportation Services Logo.png" alt="Logo YBC" class="w-32 h-32 mx-auto mb-2 object-contain" onerror="this.style.display='none'">
+            <h2 class="text-3xl font-extrabold text-slate-900 mb-1 tracking-tight">YBC E-POS</h2>
+            <p class="text-sm text-slate-500 mb-8 font-medium" id="auth-subtitle" data-i18n="auth_sub">Sistem Manajemen Bisnis Terpadu</p>
+
+            <div id="auth-alert" style="display:none;"></div>
+
+            <div id="form-login">
+                <input id="log-user" class="w-full p-4 mb-4 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition bg-white/70" placeholder="Username">
+                <input id="log-pass" type="password" class="w-full p-4 mb-6 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition bg-white/70" placeholder="Password">
+                <button class="w-full bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-2xl font-bold transition shadow-lg shadow-blue-200" onclick="login()" data-i18n="btn_login">Masuk ke Sistem</button>
+                <p class="mt-6 text-sm text-slate-500 cursor-pointer hover:text-blue-600 font-medium transition" onclick="toggleAuth('reg')" data-i18n="btn_reg_link">Daftarkan Cabang Baru</p>
+                <p class="mt-4 text-xs text-red-500 cursor-pointer hover:text-red-600 font-bold transition flex items-center justify-center gap-1" onclick="toggleAuth('hq')"><span>🏢</span> <span data-i18n="btn_hq_link">Akses Kontrol Pusat (HQ)</span></p>
+            </div>
+
+            <div id="form-register" class="hidden">
+                <input id="reg-user" class="w-full p-4 mb-4 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-slate-100 focus:border-slate-500 outline-none transition bg-white/70" placeholder="Username">
+                <input id="reg-pass" type="password" class="w-full p-4 mb-6 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-slate-100 focus:border-slate-500 outline-none transition bg-white/70" placeholder="Password">
+                <button class="w-full bg-slate-800 hover:bg-slate-900 text-white p-4 rounded-2xl font-bold transition shadow-xl" onclick="register()" data-i18n="btn_register">Daftar Sekarang</button>
+                <p class="mt-6 text-sm text-slate-500 cursor-pointer hover:text-blue-600 font-medium transition" onclick="toggleAuth('log')" data-i18n="btn_back_login">Kembali ke Login</p>
+            </div>
+
+            <div id="form-hq" class="hidden">
+                <div class="bg-red-50 text-red-600 p-3 rounded-xl mb-6 text-xs font-bold border border-red-100" data-i18n="hq_mode_badge">MODE KONTROL PUSAT (HQ)</div>
+                <input id="hq-pass" type="password" class="w-full p-4 mb-6 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-red-100 focus:border-red-500 outline-none transition bg-white/70" placeholder="HQ Password">
+                <button class="w-full bg-red-600 hover:bg-red-700 text-white p-4 rounded-2xl font-bold transition shadow-lg shadow-red-200" onclick="loginHQ()" data-i18n="btn_hq_login">Otorisasi Pusat</button>
+                <p class="mt-6 text-sm text-slate-500 cursor-pointer hover:text-red-600 font-medium transition" onclick="toggleAuth('log')" data-i18n="btn_back_cashier">Kembali ke Login Kasir</p>
+            </div>
+            
+            <p class="mt-8 text-xs text-slate-400">ybcepos.netlify.app</p>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="app-wrapper" class="hidden flex h-full w-full">
+        
+        <!-- Sidebar -->
+        <aside class="w-72 bg-slate-900 text-slate-300 flex flex-col shadow-2xl z-20 shrink-0">
+            <div class="p-8 text-center border-b border-slate-800/50">
+                <img src="Black Delivery & Transportation Services Logo.png" alt="Logo YBC" class="w-24 h-24 mx-auto mb-3 object-contain bg-white rounded-2xl p-2 shadow-inner" onerror="this.style.display='none'">
+                <h1 class="text-xl font-black text-white tracking-wide uppercase mt-2" id="sb-store">YBC STORE</h1>
+                <span class="inline-block mt-2 bg-slate-800 text-blue-400 px-3 py-1 rounded-full text-xs font-bold" id="sb-user">Kasir</span>
+            </div>
+            <nav class="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
+                <p class="px-4 text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-3" data-i18n="nav_grp_1">Operasional</p>
+                <div class="p-3.5 cursor-pointer hover:bg-slate-800 hover:text-white rounded-xl font-medium transition flex items-center gap-3" onclick="view('pos', this)"><span>🛒</span> Point of Sale</div>
+                <div class="p-3.5 cursor-pointer hover:bg-slate-800 hover:text-white rounded-xl font-medium transition flex items-center gap-3" onclick="view('inv', this)"><span>📦</span> <span data-i18n="nav_inv">Inventaris Barang</span></div>
+                <div class="p-3.5 cursor-pointer hover:bg-slate-800 hover:text-white rounded-xl font-medium transition flex items-center gap-3" onclick="view('hist', this)"><span>🧾</span> <span data-i18n="nav_hist">Histori Transaksi</span></div>
+                
+                <p class="px-4 text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mt-8 mb-3" data-i18n="nav_grp_2">Manajemen</p>
+                <div class="p-3.5 cursor-pointer hover:bg-slate-800 hover:text-white rounded-xl font-medium transition flex items-center gap-3" onclick="view('fin', this)"><span>📈</span> <span data-i18n="nav_fin">Laporan Keuangan</span></div>
+                <div class="p-3.5 cursor-pointer hover:bg-slate-800 hover:text-white rounded-xl font-medium transition flex items-center gap-3" onclick="syncServer()"><span>☁️</span> Cloud Sync</div>
+                <div class="p-3.5 cursor-pointer hover:bg-slate-800 hover:text-white rounded-xl font-medium transition flex items-center gap-3" onclick="view('set', this)"><span>⚙️</span> <span data-i18n="nav_set">Pengaturan Sistem</span></div>
+                
+                <p class="px-4 text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mt-8 mb-3 text-indigo-400">Extensions</p>
+                <div class="p-3.5 cursor-pointer hover:bg-slate-800 hover:text-white rounded-xl font-medium transition flex items-center gap-3" onclick="view('plugin', this)"><span>🧩</span> Plugin & Add-ons</div>
+
+                <div class="mt-8 pt-6 border-t border-slate-800/50 px-2">
+                    <div class="p-4 cursor-pointer bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-blue-900/50 hover:shadow-blue-900/80 transition flex items-center justify-center gap-2" onclick="view('ai', this)">
+                        <span>✨</span> YBC AI Copilot
+                    </div>
+                </div>
+            </nav>
+            <div class="p-5 bg-slate-950 text-center font-mono text-xs text-slate-500" id="clock">00:00:00</div>
+        </aside>
+
+        <main class="flex-1 flex flex-col relative overflow-hidden bg-slate-50">
+            <!-- Header -->
+            <header class="bg-white border-b border-slate-200 px-8 py-5 flex justify-between items-center z-10 shadow-sm shrink-0">
+                <div>
+                    <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight" id="view-title">Point of Sale</h2>
+                    <p class="text-sm text-slate-500 font-medium mt-1" id="view-subtitle" data-i18n="hdr_sub">Sistem Penjualan Enterprise</p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button onclick="toggleLang()" class="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl font-bold text-sm hover:bg-slate-200 transition border border-slate-200 flex items-center gap-2">
+                        <span id="lang-icon-main">🇮🇩 ID</span>
+                    </button>
+                    <button class="bg-red-50 text-red-600 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-red-100 border border-red-100 transition" onclick="logout()" data-i18n="btn_logout">Logout</button>
+                </div>
+            </header>
+
+            <div class="flex-1 overflow-y-auto p-8 relative">
+                
+                <!-- VIEW: POS KASIR -->
+                <div id="pos" class="view active h-full">
+                    <div class="flex justify-between items-center mb-8">
+                        <div class="relative w-full max-w-lg">
+                            <span class="absolute left-4 top-3.5 text-slate-400">🔍</span>
+                            <input type="text" id="pos-search" class="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl shadow-sm focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition" placeholder="Cari SKU / Search products..." onkeyup="rendPOS(this.value)">
+                        </div>
+                        <div class="text-sm font-bold text-slate-500 bg-white px-5 py-3 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
+                            🔥 Top Item: <span id="top-item-name" class="text-blue-600 bg-blue-50 px-2 py-1 rounded-md">-</span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 pb-10" id="pos-grid"></div>
+                </div>
+
+                <!-- VIEW: INVENTARIS -->
+                <div id="inv" class="view">
+                    <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 mb-8">
+                        <h3 class="font-bold text-xl mb-6 text-slate-800" data-i18n="inv_title">Manajemen Data Barang</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-5 mb-6">
+                            <input id="in-n" placeholder="Nama / Name" class="col-span-2 border border-slate-200 p-3.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 bg-slate-50">
+                            <input id="in-s" type="number" placeholder="Stok / Qty" class="border border-slate-200 p-3.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 bg-slate-50">
+                            <input id="in-m" type="number" placeholder="Modal / Cost (Rp)" class="border border-slate-200 p-3.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 bg-slate-50">
+                            <input id="in-j" type="number" placeholder="Jual / Price (Rp)" class="border border-slate-200 p-3.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 bg-slate-50">
+                        </div>
+                        <button class="bg-slate-900 hover:bg-black text-white px-8 py-3.5 rounded-xl font-bold shadow-md transition" onclick="addInv()" data-i18n="btn_add_db">+ Tambah ke Database</button>
+                    </div>
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-50 border-b border-slate-200">
+                                <tr>
+                                    <th class="p-5 text-xs font-bold text-slate-500 uppercase" data-i18n="th_name">Nama Produk</th>
+                                    <th class="p-5 text-xs font-bold text-slate-500 uppercase" data-i18n="th_stock">Stok</th>
+                                    <th class="p-5 text-xs font-bold text-slate-500 uppercase" data-i18n="th_cost">Modal</th>
+                                    <th class="p-5 text-xs font-bold text-slate-500 uppercase" data-i18n="th_price">Harga Jual</th>
+                                    <th class="p-5 text-xs font-bold text-slate-500 uppercase text-center" data-i18n="th_act">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tb-inv" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- VIEW: HISTORI -->
+                <div id="hist" class="view">
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-50 border-b border-slate-200">
+                                <tr>
+                                    <th class="p-5 text-xs font-bold text-slate-500 uppercase" data-i18n="th_date">Waktu & Tanggal</th>
+                                    <th class="p-5 text-xs font-bold text-slate-500 uppercase" data-i18n="th_id">ID & Metode</th>
+                                    <th class="p-5 text-xs font-bold text-slate-500 uppercase" data-i18n="th_detail">Rincian Belanja</th>
+                                    <th class="p-5 text-xs font-bold text-slate-500 uppercase text-right" data-i18n="th_revenue">Pendapatan</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tb-hist" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- VIEW: KEUANGAN -->
+                <div id="fin" class="view">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="font-bold text-xl text-slate-800" data-i18n="fin_title">Dashboard Keuangan</h3>
+                        <div class="text-xs font-bold text-slate-500 bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-2" id="live-kurs-badge">
+                            <span class="animate-pulse w-2 h-2 bg-slate-300 rounded-full inline-block"></span>
+                            Syncing Global Rates...
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-slate-500 font-extrabold mb-1 uppercase tracking-wider" data-i18n="fin_gross">Laba Kotor</p>
+                                <h3 class="text-4xl font-black text-slate-800" id="l-kotor">Rp0</h3>
+                                <div class="mt-3 flex items-center gap-3 text-[11px] font-black uppercase tracking-wider" id="l-kotor-ex"></div>
+                            </div>
+                            <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-3xl text-blue-500">💰</div>
+                        </div>
+                        <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-slate-500 font-extrabold mb-1 uppercase tracking-wider" data-i18n="fin_exp">Total Pengeluaran</p>
+                                <h3 class="text-4xl font-black text-red-500" id="l-keluar">Rp0</h3>
+                                <div class="mt-3 flex items-center gap-3 text-[11px] font-black uppercase tracking-wider" id="l-keluar-ex"></div>
+                            </div>
+                            <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-3xl text-red-500">📉</div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="col-span-2 bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+                            <h4 class="font-bold text-lg mb-6 text-slate-800" data-i18n="fin_chart">Grafik Kinerja Real-Time</h4>
+                            <div class="relative w-full h-[320px]"><canvas id="financeChart"></canvas></div>
+                        </div>
+                        
+                        <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-center">
+                            <h4 class="font-bold text-lg mb-4 text-slate-800" data-i18n="fin_record">Catat Operasional</h4>
+                            <p class="text-sm text-slate-500 mb-6" data-i18n="fin_record_sub">Masukkan beban biaya operasional untuk memotong laba.</p>
+                            <div>
+                                <input type="number" id="inp-exp" class="w-full border border-slate-200 p-4 rounded-xl outline-none focus:ring-2 focus:ring-red-400 bg-slate-50 mb-4" placeholder="Rp...">
+                                <button class="w-full bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 py-3.5 rounded-xl font-bold transition shadow-sm border border-red-100" onclick="addExp()" data-i18n="btn_cut_bal">Potong Saldo</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW: SETTINGS -->
+                <div id="set" class="view">
+                    <div class="bg-white p-10 rounded-3xl shadow-sm border border-slate-200 max-w-3xl mx-auto">
+                        <div class="flex items-center gap-4 mb-8">
+                            <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-2xl">⚙️</div>
+                            <div>
+                                <h4 class="font-black text-2xl text-slate-800" data-i18n="set_title">Pengaturan Sistem</h4>
+                                <p class="text-sm text-slate-500" data-i18n="set_sub">Konfigurasi outlet dan instalasi Desktop.</p>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-6">
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-2" data-i18n="set_store_name">Nama Toko / Outlet</label>
+                                <input type="text" id="set-toko" class="w-full border border-slate-200 p-4 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 bg-slate-50 font-medium">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-2" data-i18n="set_email_report">Email Penerima Laporan</label>
+                                <input type="email" id="set-email" class="w-full border border-slate-200 p-4 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 bg-slate-50 font-medium" placeholder="owner@ybcepos.com">
+                            </div>
+
+                            <!-- ZONA HQ -->
+                            <div id="hq-zone-settings" class="hidden flex-col gap-4 mt-8 p-6 bg-red-50 border border-red-200 rounded-2xl relative">
+                                <h5 class="text-red-700 font-extrabold flex items-center gap-2 text-lg uppercase tracking-wide mb-2"><span>🏢</span> <span data-i18n="hq_zone">ZONA KONTROL PUSAT (HQ)</span></h5>
+                                <p class="text-xs text-red-600 font-bold mb-2">🔒 Auto-Save Server Configuration.</p>
+                                
+                                <div>
+                                    <label class="block text-sm font-bold text-red-700 mb-2">Google Gemini API Key (Model 3.5)</label>
+                                    <input type="password" id="api-key" class="w-full border border-red-200 p-4 rounded-xl outline-none focus:ring-2 focus:ring-red-400 bg-white font-mono text-slate-600 shadow-inner" placeholder="AI API Key...">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold text-red-700 mb-2">Google Apps Script URL (Webhook)</label>
+                                    <input type="text" id="set-api-email" class="w-full border border-red-200 p-4 rounded-xl outline-none focus:ring-2 focus:ring-red-400 bg-white text-xs font-mono text-slate-600 shadow-inner" placeholder="https://script.google.com/macros/s/...">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-8 pt-8 border-t border-slate-100 flex gap-4">
+                            <button class="bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-slate-900 px-6 py-4 rounded-xl font-bold transition shadow-sm w-full flex items-center justify-center gap-2" onclick="testEmail()" id="btn-test-email">
+                                <span>✉️</span> <span data-i18n="btn_test_email">Uji Coba Kirim Email</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW: PLUGIN -->
+                <div id="plugin" class="view h-full flex flex-col">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex justify-between items-center mb-6 shrink-0">
+                        <div>
+                            <h3 class="font-bold text-xl text-slate-800 flex items-center gap-3">
+                                Add-ons & Ekstensi
+                            </h3>
+                            <p class="text-sm text-slate-500 font-medium mt-1" data-i18n="plug_sub">Muat modul kustom (.html) buatan komunitas YBC.</p>
+                        </div>
+                        <label class="bg-slate-900 hover:bg-black text-white px-5 py-2.5 rounded-xl font-bold text-sm transition cursor-pointer flex items-center gap-2 shadow-md">
+                            <span>📂 <span data-i18n="btn_load_plug">Pilih File Add-on (.html)</span></span>
+                            <input type="file" id="plugin-file" accept=".html" class="hidden">
+                        </label>
+                    </div>
+                    <div class="flex-1 bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm relative min-h-[500px]">
+                        <div id="plugin-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50">
+                            <div class="text-5xl mb-4">🧩</div>
+                            <p class="font-bold" data-i18n="plug_empty">Area Plugin Kosong</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW: AI COPILOT -->
+                <div id="ai" class="view flex flex-col h-[calc(100vh-140px)]">
+                    <div id="chat" class="flex-1 bg-white border border-slate-200 rounded-3xl p-6 overflow-y-auto mb-5 flex flex-col gap-6 shadow-sm">
+                        <div class="flex gap-4">
+                            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-white font-bold shadow-md shrink-0 ring-4 ring-blue-50 text-xs">AI</div>
+                            <div class="bg-slate-50 border border-slate-100 p-5 rounded-2xl rounded-tl-none max-w-[85%] text-sm text-slate-700 shadow-sm leading-relaxed" id="ai-greeting">
+                                <b class="text-slate-900 text-base block mb-2">Halo, saya YBC Chief Financial AI. 💼</b>
+                                Saya siap membantu mengelola dan menganalisa bisnis Anda.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-3 items-end">
+                        <label class="bg-white border border-slate-200 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600 rounded-2xl w-14 h-14 flex items-center justify-center cursor-pointer shadow-sm transition shrink-0 group">
+                            <svg class="w-6 h-6 text-slate-500 group-hover:text-blue-600 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
+                            <input type="file" id="ai-file" accept="image/*, .xlsx, .xls, .csv" class="hidden">
+                        </label>
+                        <button id="mic" class="bg-white border border-slate-200 text-slate-500 hover:text-slate-800 w-14 h-14 rounded-2xl flex items-center justify-center text-xl shadow-sm transition shrink-0" onclick="startMic()">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                        </button>
+                        <div class="flex-1 bg-white border-2 border-slate-200 rounded-2xl shadow-sm focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 transition overflow-hidden p-1.5 flex relative">
+                            <div id="attach-indicator" class="hidden absolute left-3 top-3.5 items-center gap-2 bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-bold z-10">
+                                <span id="attach-text">📎 Terlampir</span>
+                                <button onclick="clearAttachment()" class="hover:text-red-500">×</button>
+                            </div>
+                            <input type="text" id="ai-txt" class="flex-1 p-3 px-4 outline-none text-slate-700 w-full" placeholder="Ketik perintah / Type command..." onkeypress="if(event.key==='Enter') sendAI()">
+                            <button class="bg-slate-900 hover:bg-black text-white px-6 py-2.5 rounded-xl font-bold transition shadow-md m-0.5 ml-2" onclick="sendAI()" data-i18n="btn_send">Kirim</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            
+            <div id="sync-overlay" class="absolute inset-0 bg-white/80 backdrop-blur-sm z-50 hidden flex-col items-center justify-center">
+                <div class="animate-spin rounded-full h-14 w-14 border-4 border-slate-200 border-t-blue-600 mb-6"></div>
+                <h2 class="text-xl font-extrabold text-slate-800" data-i18n="sync_title">Menyinkronkan Server...</h2>
+            </div>
+        </main>
+
+        <!-- CART SIDEBAR -->
+        <aside id="cart-sidebar" class="w-[400px] bg-white border-l border-slate-200 shadow-2xl flex flex-col z-20 transition-all duration-300 ease-in-out shrink-0">
+            <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-white z-10">
+                <h3 class="font-black text-xl text-slate-800" data-i18n="cart_title">Keranjang</h3>
+                <button class="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1.5 rounded-lg hover:bg-red-50 hover:text-red-500 transition" onclick="cart=[];rendAll()" data-i18n="btn_clear">Kosongkan</button>
+            </div>
+            
+            <div id="cart" class="flex-1 overflow-y-auto p-6 space-y-3 bg-slate-50/50"></div>
+            
+            <div class="p-6 bg-white border-t border-slate-100 shadow-[0_-10px_20px_rgba(0,0,0,0.02)] z-10">
+                <div class="flex justify-between items-end mb-6">
+                    <span class="text-slate-500 font-extrabold text-xs uppercase tracking-widest" data-i18n="cart_total">Total Bayar</span>
+                    <span id="c-tot" class="text-4xl font-black text-slate-800 tracking-tight">Rp0</span>
+                </div>
+                <div class="mb-5">
+                    <select id="pay-meth" class="w-full p-4 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-4 focus:ring-blue-50 bg-white appearance-none text-center shadow-sm cursor-pointer hover:border-slate-300 transition">
+                        <option value="Tunai" id="opt_cash">💵 Cash / Tunai</option>
+                        <option value="QRIS">📱 QRIS Scan</option>
+                        <option value="Transfer">🏦 Bank Transfer</option>
+                    </select>
+                </div>
+                <button class="w-full bg-blue-600 hover:bg-blue-700 text-white p-5 rounded-xl font-bold shadow-xl shadow-blue-200 transition flex items-center justify-center gap-2 text-lg" onclick="pay()" data-i18n="btn_process">
+                    Proses Transaksi
+                </button>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        // --- 1. TOAST & HELPERS ---
+        function showToast(msg, isError=false) {
+            const c = document.getElementById('toast-container');
+            const t = document.createElement('div');
+            t.className = `p-4 rounded-xl shadow-2xl text-white font-bold text-sm flex items-center gap-3 toast-enter ${isError ? 'bg-red-600' : 'bg-slate-800'}`;
+            t.innerHTML = `<span>${isError ? '⚠️' : '✅'}</span> <span>${msg}</span>`;
+            c.appendChild(t);
+            requestAnimationFrame(() => requestAnimationFrame(() => { t.classList.remove('toast-enter'); t.classList.add('toast-active'); }));
+            setTimeout(() => {
+                t.classList.remove('toast-active'); t.classList.add('toast-enter');
+                setTimeout(() => t.remove(), 300);
+            }, 3500);
+        }
+
+        const fRp = n => new Intl.NumberFormat('id-ID').format(n);
+        async function askConfirm(msg) { return confirm(msg); } 
+
+        // --- 2. BILINGUAL (i18n) DICTIONARY ---
+        const i18n = {
+            id: {
+                auth_sub: "Sistem Manajemen Bisnis Terpadu", btn_login: "Masuk ke Sistem", btn_reg_link: "Daftarkan Cabang Baru", btn_hq_link: "Akses Kontrol Pusat (HQ)",
+                btn_register: "Daftar Sekarang", btn_back_login: "Kembali ke Login", hq_mode_badge: "MODE KONTROL PUSAT (HQ)", btn_hq_login: "Otorisasi Pusat", btn_back_cashier: "Kembali ke Login Kasir",
+                nav_grp_1: "Operasional", nav_inv: "Inventaris Barang", nav_hist: "Histori Transaksi", nav_grp_2: "Manajemen", nav_fin: "Laporan Keuangan", nav_set: "Pengaturan Sistem",
+                hdr_sub: "Sistem Penjualan Enterprise", btn_logout: "Keluar",
+                inv_title: "Manajemen Data Barang", btn_add_db: "+ Tambah ke Database",
+                th_name: "Nama Produk", th_stock: "Stok", th_cost: "Modal", th_price: "Harga Jual", th_act: "Aksi",
+                th_date: "Waktu & Tanggal", th_id: "ID & Metode", th_detail: "Rincian Belanja", th_revenue: "Pendapatan",
+                fin_title: "Dashboard Keuangan", fin_gross: "Laba Kotor", fin_exp: "Total Pengeluaran", fin_chart: "Grafik Kinerja Real-Time", fin_record: "Catat Operasional", fin_record_sub: "Masukkan beban biaya untuk memotong laba.", btn_cut_bal: "Potong Saldo Keuangan",
+                set_title: "Pengaturan Sistem", set_sub: "Konfigurasi outlet dan integrasi webhook.", set_store_name: "Nama Toko / Outlet", set_email_report: "Email Penerima Laporan", hq_zone: "ZONA KONTROL PUSAT (HQ)", btn_test_email: "Uji Coba Kirim Email",
+                plug_sub: "Muat modul kustom (.html) buatan komunitas YBC.", btn_load_plug: "Pilih File Add-on (.html)", plug_empty: "Area Plugin Kosong",
+                btn_send: "Kirim", sync_title: "Menyinkronkan Server...",
+                cart_title: "Keranjang", btn_clear: "Kosongkan", cart_total: "Total Bayar", btn_process: "Proses Transaksi",
+                msg_del: "Hapus", msg_empty_cart: "Keranjang Kosong.",
+                ai_greet: "<b class='text-slate-900 text-base block mb-2'>Halo, saya YBC Chief Financial AI. 💼</b> Saya siap membantu mengelola dan menganalisa bisnis Anda.",
+                // Onboarding Text
+                on_title: "Selamat Datang di YBC ePOS!", on_desc: "Sistem Kasir Enterprise modern yang terintegrasi dengan Kecerdasan Buatan (AI) dan dukungan Ekstensi Add-on untuk operasional bisnis Anda.",
+                on_f1_t: "AI Copilot", on_f1_d: "Asisten AI yang siap mengelola data Excel & email darurat.",
+                on_f2_t: "Sistem Add-on", on_f2_d: "Pasang ekstensi HTML (Kalkulator, dll) yang bisa melayang.",
+                on_f3_t: "Mode Hibrida", on_f3_d: "Berjalan di Browser maupun sebagai Aplikasi Desktop / CBT.", btn_start_app: "Mulai Gunakan Sistem"
+            },
+            en: {
+                auth_sub: "Integrated Business Management System", btn_login: "Sign In", btn_reg_link: "Register New Branch", btn_hq_link: "Access HQ Control",
+                btn_register: "Register Now", btn_back_login: "Back to Login", hq_mode_badge: "HQ CONTROL MODE", btn_hq_login: "Authorize HQ", btn_back_cashier: "Back to Cashier Login",
+                nav_grp_1: "Operations", nav_inv: "Inventory", nav_hist: "Transaction History", nav_grp_2: "Management", nav_fin: "Financial Report", nav_set: "System Settings",
+                hdr_sub: "Enterprise Sales System", btn_logout: "Logout",
+                inv_title: "Inventory Management", btn_add_db: "+ Add to Database",
+                th_name: "Product Name", th_stock: "Stock", th_cost: "Cost", th_price: "Selling Price", th_act: "Action",
+                th_date: "Date & Time", th_id: "ID & Method", th_detail: "Purchase Details", th_revenue: "Revenue",
+                fin_title: "Financial Dashboard", fin_gross: "Gross Profit", fin_exp: "Total Expenses", fin_chart: "Real-Time Performance Chart", fin_record: "Record Operation", fin_record_sub: "Enter operational expenses to deduct from balance.", btn_cut_bal: "Deduct Balance",
+                set_title: "System Settings", set_sub: "Outlet configuration and webhook integration.", set_store_name: "Store / Outlet Name", set_email_report: "Report Recipient Email", hq_zone: "HQ CONTROL ZONE", btn_test_email: "Test Send Email",
+                plug_sub: "Load custom .html modules made by the YBC community.", btn_load_plug: "Choose Add-on File (.html)", plug_empty: "Plugin Area Empty",
+                btn_send: "Send", sync_title: "Syncing Server...",
+                cart_title: "Cart", btn_clear: "Clear All", cart_total: "Total Payment", btn_process: "Process Transaction",
+                msg_del: "Delete", msg_empty_cart: "Cart is empty.",
+                ai_greet: "<b class='text-slate-900 text-base block mb-2'>Hello, I am YBC Chief Financial AI. 💼</b> I am ready to help manage and analyze your business.",
+                // Onboarding Text
+                on_title: "Welcome to YBC ePOS!", on_desc: "A modern Enterprise POS system integrated with Artificial Intelligence (AI) and Add-on Extension support for your business operations.",
+                on_f1_t: "AI Copilot", on_f1_d: "AI assistant ready to manage Excel data & emergency emails.",
+                on_f2_t: "Add-on System", on_f2_d: "Install HTML extensions (Calculators, etc.) that float.",
+                on_f3_t: "Hybrid Mode", on_f3_d: "Runs in Browser or as a Desktop / CBT Application.", btn_start_app: "Get Started"
+            }
+        };
+
+        let currentLang = localStorage.getItem('y_lang') || 'id';
+        const t = key => i18n[currentLang][key] || key;
+
+        function applyLanguage() {
+            const dict = i18n[currentLang];
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if(dict[key]) el.innerHTML = dict[key];
+            });
+            document.getElementById('lang-icon-login').innerText = currentLang === 'id' ? '🇮🇩 ID' : '🇬🇧 EN';
+            document.getElementById('lang-icon-main').innerText = currentLang === 'id' ? '🇮🇩 ID' : '🇬🇧 EN';
+            document.getElementById('lang-icon-onboard').innerText = currentLang === 'id' ? '🇮🇩 ID' : '🇬🇧 EN';
+            document.getElementById('ai-greeting').innerHTML = dict.ai_greet;
+            document.getElementById('opt_cash').innerText = currentLang === 'id' ? '💵 Cash / Tunai' : '💵 Cash';
+            if(user) rendAll(); 
+        }
+
+        function toggleLang() {
+            currentLang = currentLang === 'id' ? 'en' : 'id';
+            localStorage.setItem('y_lang', currentLang);
+            applyLanguage();
+        }
+
+        // --- ONBOARDING LOGIC ---
+        function checkOnboarding() {
+            if (!localStorage.getItem('y_first_visit')) {
+                const obs = document.getElementById('onboarding-screen');
+                obs.style.display = 'flex';
+                obs.classList.remove('hidden');
+                requestAnimationFrame(() => {
+                    document.getElementById('onboard-card').classList.remove('onboard-enter');
+                    document.getElementById('onboard-card').classList.add('onboard-active');
+                });
+            }
+        }
+
+        function closeOnboarding() {
+            localStorage.setItem('y_first_visit', '1');
+            document.getElementById('onboard-card').classList.remove('onboard-active');
+            document.getElementById('onboard-card').classList.add('onboard-enter');
+            setTimeout(() => {
+                document.getElementById('onboarding-screen').style.display = 'none';
+            }, 500);
+        }
+
+        // --- 3. CORE STATE & AUTHENTICATION ---
+        let accs = JSON.parse(localStorage.getItem('y_acc')) || [{ u: 'admin', p: '123' }];
+        let user = localStorage.getItem('y_user') || null;
+        let inv = JSON.parse(localStorage.getItem('y_inv')) || [];
+        let fin = JSON.parse(localStorage.getItem('y_fin')) || { p: 0, e: 0 };
+        let hist = JSON.parse(localStorage.getItem('y_hist')) || [];
+        let conf = JSON.parse(localStorage.getItem('y_conf')) || { toko: "YBC ePOS Enterprise", email: "", apiEmail: "" };
+        let cart = [], aiHist = [], myChart = null, liveKurs = { usd: 16000, cny: 2200 }, currentAiAttachment = null;
+
+        function toggleAuth(type) {
+            document.getElementById('form-login').style.display = type==='log' ? 'block' : 'none';
+            document.getElementById('form-register').style.display = type==='reg' ? 'block' : 'none';
+            document.getElementById('form-hq').style.display = type==='hq' ? 'block' : 'none';
+        }
+
+        function register() {
+            let u = document.getElementById('reg-user').value.trim(), p = document.getElementById('reg-pass').value.trim();
+            if(!u || !p) return showToast("Lengkapi data pendaftaran!", true);
+            if(accs.find(a=>a.u===u)) return showToast("Username sudah dipakai!", true);
+            accs.push({u,p}); localStorage.setItem('y_acc', JSON.stringify(accs));
+            showToast("Pendaftaran sukses! Silakan login."); toggleAuth('log');
+        }
+
+        function login() {
+            let u = document.getElementById('log-user').value.trim(), p = document.getElementById('log-pass').value.trim();
+            if(accs.find(a=>a.u===u && a.p===p)){ 
+                localStorage.setItem('y_user', u); location.reload(); 
+            } else showToast("Username atau Password Salah!", true);
+        }
+
+        function loginHQ() {
+            let p = document.getElementById('hq-pass').value.trim();
+            if(p === 'kontrolpusatybc123'){ 
+                localStorage.setItem('y_user', 'PUSAT_HQ'); location.reload(); 
+            } else showToast("Password HQ Salah!", true);
+        }
+
+        function logout() { localStorage.removeItem('y_user'); location.reload(); }
+
+        // --- 4. PLUGIN LOADER (FLOATING WINDOW) ---
+        let addonCounter = 0;
+        document.getElementById('plugin-file').addEventListener('change', function(e) {
+            const file = e.target.files[0]; if(!file) return;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                addonCounter++;
+                const addonId = 'addon-window-' + addonCounter;
+                const floatingWindow = document.createElement('div');
+                floatingWindow.id = addonId;
+                
+                const startTop = 100 + (addonCounter * 20), startLeft = 100 + (addonCounter * 20);
+                floatingWindow.className = `fixed w-[380px] h-[550px] bg-slate-900 rounded-2xl shadow-2xl border border-slate-700 z-[9998] flex flex-col overflow-hidden resize transform transition-transform scale-95 opacity-0`;
+                floatingWindow.style.top = startTop + 'px';
+                floatingWindow.style.left = startLeft + 'px';
+                
+                floatingWindow.innerHTML = `
+                    <div id="${addonId}-header" class="bg-gradient-to-r from-slate-800 to-slate-900 text-slate-300 p-3 cursor-move flex justify-between items-center select-none border-b border-slate-700 shrink-0">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full bg-blue-500 animate-pulse"></span>
+                            <span class="font-bold text-xs uppercase tracking-wider truncate max-w-[200px]">${file.name}</span>
+                        </div>
+                        <button onclick="document.getElementById('${addonId}').remove()" class="w-6 h-6 flex items-center justify-center rounded-full bg-slate-700 hover:bg-red-500 hover:text-white transition text-xs font-bold">✕</button>
+                    </div>
+                    <iframe class="flex-1 w-full h-full bg-transparent border-none rounded-b-2xl" sandbox="allow-scripts allow-downloads allow-same-origin allow-forms"></iframe>
+                `;
+                document.body.appendChild(floatingWindow);
+                
+                requestAnimationFrame(() => floatingWindow.classList.remove('scale-95', 'opacity-0'));
+                
+                const iframe = floatingWindow.querySelector('iframe');
+                iframe.srcdoc = event.target.result;
+                
+                let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+                const header = document.getElementById(`${addonId}-header`);
+                header.onmousedown = (e) => {
+                    e.preventDefault();
+                    document.querySelectorAll('[id^="addon-window-"]').forEach(w => w.style.zIndex = '9998');
+                    floatingWindow.style.zIndex = '9999';
+                    pos3 = e.clientX; pos4 = e.clientY;
+                    document.onmouseup = () => { document.onmouseup = null; document.onmousemove = null; };
+                    document.onmousemove = (e) => {
+                        e.preventDefault();
+                        pos1 = pos3 - e.clientX; pos2 = pos4 - e.clientY;
+                        pos3 = e.clientX; pos4 = e.clientY;
+                        floatingWindow.style.top = (floatingWindow.offsetTop - pos2) + "px";
+                        floatingWindow.style.left = (floatingWindow.offsetLeft - pos1) + "px";
+                    };
+                };
+                
+                showToast(`Add-on ${file.name} diluncurkan!`);
+                e.target.value = '';
+            };
+            reader.readAsText(file);
+        });
+
+        // --- 5. NAVIGATION & APP LOGIC ---
+        function view(id, el=null) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            const cartSidebar = document.getElementById('cart-sidebar');
+            if(id === 'pos') { cartSidebar.style.display = 'flex'; cartSidebar.style.width = '400px'; cartSidebar.style.borderLeftWidth = '1px'; } 
+            else { cartSidebar.style.display = 'none'; cartSidebar.style.width = '0px'; cartSidebar.style.borderLeftWidth = '0px'; }
+            if(el) {
+                document.querySelectorAll('.nav-item, aside nav div').forEach(n => { n.style.background=''; n.classList.remove('text-white', 'bg-slate-800'); });
+                if(id !== 'ai') el.classList.add('bg-slate-800', 'text-white');
+                document.getElementById('view-title').innerText = el.innerText.replace(/[^\w\s\(\)]/gi, '').trim(); 
+            }
+            if(id === 'fin') renderChart(); 
+        }
+
+        function renderChart() {
+            const ctx = document.getElementById('financeChart'); if(!ctx) return;
+            if(myChart) myChart.destroy();
+            const lbl = currentLang === 'id' ? ['Pendapatan', 'Pengeluaran'] : ['Revenue', 'Expenses'];
+            myChart = new Chart(ctx, { type: 'bar', data: { labels: lbl, datasets: [{ data: [fin.p, fin.e], backgroundColor: ['#3b82f6', '#ef4444'], borderRadius: 8 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } } });
+        }
+
+        async function testEmail(isUrgent = false, customMsg = "") {
+            if(!conf.apiEmail || !conf.email) return showToast(currentLang==='id'?"Isi Data Webhook HQ!":"Fill HQ Webhook!", true);
+            const btn = document.getElementById('btn-test-email'); if(btn) btn.disabled = true;
+            try {
+                const wsInv = XLSX.utils.json_to_sheet(inv), wsHist = XLSX.utils.json_to_sheet(hist), wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, wsInv, "Data_Stok"); XLSX.utils.book_append_sheet(wb, wsHist, "Histori");
+                
+                // --- DESAIN TEMPLATE HTML EMAIL DENGAN YBC LOGO ---
+                // URL Logo diambil langsung dari repository GitHub Anda
+                let ybcLogoUrl = "https://raw.githubusercontent.com/fr4nkfletcher/Adafruit_WebSerial_ESPTool/main/Black%20Delivery%20%26%20Transportation%20Services%20Logo.png";
+                let emailTitle = isUrgent ? (currentLang==='id'?'🚨 LAPORAN DARURAT AI':'🚨 URGENT AI REPORT') : (currentLang==='id'?'✅ LAPORAN SISTEM KASIR':'✅ POS SYSTEM REPORT');
+                let emailDesc = customMsg || (currentLang==='id'?'Terlampir data sinkronisasi terbaru dari sistem POS cabang.':'Attached is the latest synchronization data from the branch POS system.');
+                
+                let htmlTemplate = `
+                <div style="font-family: Arial, sans-serif; background-color: #f8fafc; padding: 40px 20px; background-image: url('${ybcLogoUrl}'); background-repeat: no-repeat; background-position: center; background-size: 300px; background-blend-mode: color-burn; text-align:center;">
+                    <div style="background-color: rgba(255,255,255,0.95); max-width: 600px; margin: auto; padding: 40px; border-radius: 16px; border-top: 6px solid ${isUrgent?'#ef4444':'#2563eb'}; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">
+                        <img src="${ybcLogoUrl}" alt="YBC Logo" style="width: 120px; margin-bottom: 20px;">
+                        <h2 style="color: #1e293b; margin-top:0;">YBC ePOS<br><span style="color:${isUrgent?'#ef4444':'#3b82f6'};">${emailTitle}</span></h2>
+                        <h3 style="color: #475569; background:#f1f5f9; padding: 10px; border-radius: 8px;">Cabang / Store: <b>${conf.toko}</b></h3>
+                        <p style="color: #334155; font-size: 16px; line-height: 1.5; margin: 30px 0;">${emailDesc}</p>
+                        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;">
+                        <p style="font-size: 12px; color: #94a3b8; font-weight:bold;">🤖 Pesan otomatis dari YBC AI Copilot.</p>
+                        <p style="font-size: 10px; color: #cbd5e1;">© 2026 YBC Enterprise Development Team</p>
+                    </div>
+                </div>
+                `;
+
+                // Kirim Payload (Ditambah htmlContent untuk desain baru)
+                const res = await fetch(conf.apiEmail, { 
+                    method: 'POST', 
+                    body: JSON.stringify({ 
+                        email: conf.email, 
+                        fileBase64: XLSX.write(wb, { type: 'base64' }), 
+                        toko: conf.toko, 
+                        isUrgent: isUrgent, 
+                        customMessage: customMsg,
+                        htmlContent: htmlTemplate
+                    }) 
+                });
+                
+                const r = await res.json();
+                if(r.status === 'success') showToast(isUrgent ? "🚨 Urgent Sent!" : `Email Sent.`); else showToast("Gagal: " + r.error, true);
+            } catch (err) { showToast("Network Error.", true); } finally { if(btn) btn.disabled = false; }
+        }
+
+        // Data Manipulation
+        function addInv() { let n=document.getElementById('in-n').value, s=parseInt(document.getElementById('in-s').value)||0, m=parseInt(document.getElementById('in-m').value), j=parseInt(document.getElementById('in-j').value); if(!n || isNaN(m) || isNaN(j)) return showToast("Invalid Data!", true); let i = inv.findIndex(x=>x.name.toLowerCase()===n.toLowerCase()); if(i>-1){ inv[i].stok=s; inv[i].modal=m; inv[i].jual=j; } else inv.push({name:n, stok:s, modal:m, jual:j}); document.getElementById('in-n').value=''; document.getElementById('in-s').value=''; document.getElementById('in-m').value=''; document.getElementById('in-j').value=''; sync(); showToast("Saved."); }
+        async function delInv(i){ if(await askConfirm("Delete "+inv[i].name+"?")){ inv.splice(i,1); sync(); showToast("Deleted."); } }
+        function addCart(i) { let d=inv[i]; if(d.stok<=0) return showToast("Out of Stock!", true); let e=cart.find(c=>c.name===d.name); if(e){ if(e.qty>=d.stok) return showToast("Not enough stock!", true); e.qty++; } else cart.push({...d, qty:1}); rendAll(); }
+        function upCart(n, d) { let e=cart.find(c=>c.name===n), v=inv.find(i=>i.name===n); if(e){ let nq=e.qty+d; if(nq<=0) cart=cart.filter(x=>x.name!==n); else if(nq<=v.stok) e.qty=nq; rendAll(); } }
+        function pay() { if(cart.length===0) return; let tot=0, prof=0, desc=[]; cart.forEach(c => { tot+=c.jual*c.qty; prof+=(c.jual-c.modal)*c.qty; desc.push(`${c.name}(${c.qty})`); let i=inv.find(x=>x.name===c.name); if(i) i.stok-=c.qty; }); fin.p += prof; hist.unshift({id:"TX"+Date.now().toString().slice(-5), date:new Date().toLocaleString('id-ID'), meth:document.getElementById('pay-meth').value, tot, desc:desc.join(', '), cartSnapshot: [...cart]}); if(hist.length>100) hist.pop(); showToast(`Success (Rp${fRp(tot)})`); cart=[]; sync(); if(document.getElementById('fin').classList.contains('active')) renderChart(); }
+        function addExp() { let v=parseInt(document.getElementById('inp-exp').value); if(v){ fin.e+=v; sync(); document.getElementById('inp-exp').value=''; showToast(`Exp: Rp${fRp(v)}`); if(document.getElementById('fin').classList.contains('active')) renderChart(); } }
+        function getTopItems() { let counts = {}; hist.forEach(tx => { if(tx.cartSnapshot) tx.cartSnapshot.forEach(c => counts[c.name] = (counts[c.name] || 0) + c.qty); }); let sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]); if(sorted.length > 0) document.getElementById('top-item-name').innerText = `${sorted[0][0]} (${sorted[0][1]}x)`; }
+        function sync() { localStorage.setItem('y_inv', JSON.stringify(inv)); localStorage.setItem('y_fin', JSON.stringify(fin)); localStorage.setItem('y_hist', JSON.stringify(hist)); rendAll(); }
+        
+        function rendPOS(kw='') {
+            getTopItems(); const arr = inv.filter(i=>i.name.toLowerCase().includes(kw.toLowerCase()));
+            document.getElementById('pos-grid').innerHTML = arr.map((i,x) => `<div class="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm hover:border-blue-300 transition relative cursor-pointer" onclick="addCart(${inv.indexOf(i)})"><div class="absolute top-4 right-4 text-[10px] px-2.5 py-1 rounded-md font-black ${i.stok<=0?'bg-red-100 text-red-600':'bg-slate-100 text-slate-600'}">${i.stok} Stok</div><div class="h-24 bg-slate-50 rounded-xl mb-4 flex items-center justify-center text-4xl">📦</div><div class="text-sm font-bold truncate text-slate-800">${i.name}</div><div class="text-sm text-blue-600 font-black mt-1">Rp${fRp(i.jual)}</div></div>`).join('');
+        }
+        
+        function rendAll() {
+            rendPOS(document.getElementById('pos-search').value);
+            document.getElementById('tb-inv').innerHTML = inv.map((i,x)=>`<tr><td class="p-5 font-bold text-slate-800">${i.name}</td><td class="p-5 text-slate-600">${i.stok}</td><td class="p-5">Rp${fRp(i.modal)}</td><td class="p-5 text-blue-600 font-black">Rp${fRp(i.jual)}</td><td class="p-5 text-center"><button class="bg-red-50 text-red-600 px-3 py-1 rounded font-bold text-xs" onclick="delInv(${x})">${t('msg_del')}</button></td></tr>`).join('');
+            document.getElementById('tb-hist').innerHTML = hist.map(h=>`<tr><td class="p-5 text-xs text-slate-500">${h.date}</td><td class="p-5"><b class="font-mono text-slate-800 text-xs">${h.id}</b></td><td class="p-5 text-xs text-slate-500">${h.desc}</td><td class="p-5 text-right text-blue-600 font-black">Rp${fRp(h.tot)}</td></tr>`).join('');
+            document.getElementById('sb-store').innerText = conf.toko; 
+            
+            let sbUser = document.getElementById('sb-user');
+            if(user === 'PUSAT_HQ') {
+                sbUser.innerText = currentLang === 'id' ? "🏢 KONTROL PUSAT" : "🏢 HQ CONTROL"; 
+                sbUser.className = "inline-block mt-2 bg-red-900 text-red-300 px-3 py-1 rounded-full text-xs font-bold";
+                document.getElementById('hq-zone-settings').classList.remove('hidden'); document.getElementById('hq-zone-settings').classList.add('flex');
+            } else {
+                sbUser.innerText = (currentLang === 'id' ? "Kasir: " : "Cashier: ") + user; 
+                sbUser.className = "inline-block mt-2 bg-slate-800 text-blue-400 px-3 py-1 rounded-full text-xs font-bold";
+                document.getElementById('hq-zone-settings').classList.add('hidden'); document.getElementById('hq-zone-settings').classList.remove('flex');
+            }
+
+            document.getElementById('l-kotor').innerText = "Rp" + fRp(fin.p); document.getElementById('l-keluar').innerText = "Rp" + fRp(fin.e);
+            if(liveKurs.usd > 0) {
+                document.getElementById('l-kotor-ex').innerHTML = `<span class="bg-blue-50 text-blue-600 px-2.5 py-1 rounded-md">≈ $${fRp(Math.round(fin.p/liveKurs.usd))} USD</span> <span class="bg-red-50 text-red-600 px-2.5 py-1 rounded-md">≈ ¥${fRp(Math.round(fin.p/liveKurs.cny))} CNY</span>`;
+                document.getElementById('l-keluar-ex').innerHTML = `<span class="bg-slate-100 text-slate-500 px-2.5 py-1 rounded-md">≈ $${fRp(Math.round(fin.e/liveKurs.usd))} USD</span> <span class="bg-slate-100 text-slate-500 px-2.5 py-1 rounded-md">≈ ¥${fRp(Math.round(fin.e/liveKurs.cny))} CNY</span>`;
+            }
+
+            let cl = document.getElementById('cart');
+            if(cart.length===0){ cl.innerHTML=`<div class='text-center text-slate-400 mt-12 text-sm font-medium'>${t('msg_empty_cart')}</div>`; document.getElementById('c-tot').innerText="Rp0"; return; }
+            cl.innerHTML = cart.map(c=>`<div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-3"><div class="flex justify-between items-start"><b class="text-sm text-slate-800 line-clamp-2 pr-2">${c.name}</b><b class="text-sm text-slate-800 font-black">Rp${fRp(c.jual*c.qty)}</b></div><div class="flex items-center gap-2"><button class="w-8 h-8 rounded-lg bg-slate-100 font-bold hover:bg-slate-200" onclick="upCart('${c.name}',-1)">-</button><span class="text-sm font-bold w-6 text-center">${c.qty}</span><button class="w-8 h-8 rounded-lg bg-slate-100 font-bold hover:bg-slate-200" onclick="upCart('${c.name}',1)">+</button></div></div>`).join('');
+            document.getElementById('c-tot').innerText = "Rp" + fRp(cart.reduce((s,c)=>s+(c.jual*c.qty),0));
+        }
+        
+        async function fetchKurs() { try { let res = await fetch('https://open.er-api.com/v6/latest/USD'); let data = await res.json(); liveKurs.usd = data.rates.IDR; liveKurs.cny = data.rates.IDR / data.rates.CNY; document.getElementById('live-kurs-badge').innerHTML = `<span class="animate-pulse w-2 h-2 bg-green-500 rounded-full inline-block"></span> <span class="text-green-600">Live: 1 USD=Rp${fRp(Math.round(liveKurs.usd))} | 1 CNY=Rp${fRp(Math.round(liveKurs.cny))}</span>`; rendAll(); } catch(e) {} }
+        async function syncServer() { document.getElementById('sync-overlay').style.display = 'flex'; await new Promise(r => setTimeout(r, 1000)); document.getElementById('sync-overlay').style.display = 'none'; showToast("Sync Complete."); }
+        
+        // --- 6. AI COPILOT ---
+        document.getElementById('ai-file').addEventListener('change', function(e) {
+            let file = e.target.files[0]; if(!file) return;
+            const ind = document.getElementById('attach-indicator'), txt = document.getElementById('ai-txt');
+            if(file.type.startsWith('image/')) {
+                let r = new FileReader(); r.onload = ev => { currentAiAttachment = { inline_data: { data: ev.target.result.split(',')[1], mime_type: file.type } }; ind.classList.remove('hidden'); ind.classList.add('flex'); txt.classList.add('pl-32'); showToast("Image ready."); }; r.readAsDataURL(file);
+            } else {
+                let r = new FileReader(); r.onload = ev => {
+                    try { let wb = XLSX.read(new Uint8Array(ev.target.result), {type: 'array'}); currentAiAttachment = { text: "Data Excel:\n" + JSON.stringify(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]])) }; ind.classList.remove('hidden'); ind.classList.add('flex'); txt.classList.add('pl-32'); showToast("Excel ready."); } 
+                    catch (err) { showToast("Excel Error.", true); }
+                }; r.readAsArrayBuffer(file);
+            }
+        });
+        function clearAttachment() { currentAiAttachment = null; document.getElementById('ai-file').value = ""; document.getElementById('attach-indicator').classList.add('hidden'); document.getElementById('attach-indicator').classList.remove('flex'); document.getElementById('ai-txt').classList.remove('pl-32'); }
+        
+        function startMic(){ let m=document.getElementById('mic'), i=document.getElementById('ai-txt'), SR=window.SpeechRecognition||window.webkitSpeechRecognition; if(!SR) return showToast("Mic Not Supported.", true); let r=new SR(); r.lang= currentLang==='id'?'id-ID':'en-US'; r.onstart=()=>{m.classList.add('recording');i.placeholder="Listening...";}; r.onresult=e=>{i.value=e.results[0][0].transcript;sendAI();}; r.onend=()=>{m.classList.remove('recording');i.placeholder="Type command...";}; r.start(); }
+
+        async function sendAI() {
+            let k=document.getElementById('api-key').value, i=document.getElementById('ai-txt'), txt=i.value;
+            if(!k) return showToast("API Key Google Gemini HQ Required!", true); if(!txt && !currentAiAttachment) return;
+            let userParts = []; if (txt) userParts.push({text: txt}); else userParts.push({text: "Analisa file ini / Analyze this file."});
+            if(currentAiAttachment) { userParts.push(currentAiAttachment); clearAttachment(); }
+            apnd(txt || "[Attachment]", "user"); i.value=""; aiHist.push({role:"user", parts: userParts});
+            
+            let sys = `CFO AI YBC. Jawab dalam bahasa ${currentLang==='id'?'Indonesia':'Inggris'}. Data: INV:${JSON.stringify(inv)}, Laba Rp${fin.p}, KURS: 1 USD=Rp${Math.round(liveKurs.usd)}. Cetak command di bawah baris jika perlu eksekusi UI: ---UPDATE_JUAL: Nama | Hrg---, ---UPDATE_STOK: Nama | Qty---, ---ADD_ITEM: Nama | Modal | Jual | Stok---, ---EXPORT_EXCEL: [{"K":"V"}]---, ---SEND_EMAIL---, ---SEND_URGENT_EMAIL: Pesan---`;
+            
+            try {
+                let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${k}`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({system_instruction:{parts:[{text:sys}]}, contents:aiHist}) });
+                let d=await res.json(); if(d.error) throw new Error(d.error.message);
+                let rep=d.candidates[0].content.parts[0].text, upd=false;
+                const rx=(r,cb)=>{ let m; while((m=r.exec(rep))!==null){cb(m);upd=true;} };
+                
+                rx(/---UPDATE_JUAL:\s*(.*?)\s*\|\s*(\d+)---/g, m=>{ let v=inv.find(x=>x.name.toLowerCase()===m[1].trim().toLowerCase()); if(v) v.jual=parseInt(m[2]); });
+                rx(/---UPDATE_STOK:\s*(.*?)\s*\|\s*(\d+)---/g, m=>{ let v=inv.find(x=>x.name.toLowerCase()===m[1].trim().toLowerCase()); if(v) v.stok=parseInt(m[2]); });
+                rx(/---ADD_ITEM:\s*(.*?)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)---/g, m=>{ let n=m[1].trim(); let idx=inv.findIndex(x=>x.name.toLowerCase()===n.toLowerCase()); if(idx>-1){ inv[idx].modal=parseInt(m[2]); inv[idx].jual=parseInt(m[3]); inv[idx].stok=parseInt(m[4]); } else inv.push({name:n, modal:parseInt(m[2]), jual:parseInt(m[3]), stok:parseInt(m[4])}); });
+                rx(/---EXPORT_EXCEL:\s*(\[\s*\{.*?\}\s*\])\s*---/gs, m=>{ try { downloadExcel(JSON.parse(m[1]), "Data_AI.xlsx"); rep += currentLang==='id'?"\n\n⬇️ *Excel diunduh.*":"\n\n⬇️ *Excel downloaded.*"; } catch(e) {} });
+                rx(/---SEND_EMAIL---/g, ()=>{ testEmail(); rep += currentLang==='id'?"\n\n✉️ *Email dikirim.*":"\n\n✉️ *Email sent.*"; });
+                rx(/---SEND_URGENT_EMAIL:\s*(.*?)---/gs, m=>{ testEmail(true, m[1].trim()); rep += `\n\n🚨 **URGENT EMAIL SENT!**`; });
+
+                if(upd) { sync(); rep+= currentLang==='id'?"\n\n✅ *Database diperbarui.*":"\n\n✅ *Database updated.*"; }
+                let cln=rep.replace(/---.*?---/g,'').trim(); apnd(cln,"ai"); aiHist.push({role:"model", parts:[{text:cln}]});
+            } catch(e) { apnd(`❌ <b>Error:</b> ${e.message}`, "ai"); aiHist.pop(); }
+        }
+
+        function apnd(t, r){
+            let txt = t.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\n/g,'<br>');
+            let b=document.getElementById('chat'), d=document.createElement('div');
+            if(r==='user') { d.className = `p-4 rounded-2xl max-w-[80%] text-sm bg-slate-800 text-white self-end rounded-tr-none shadow-md mb-2`; d.innerHTML = txt; } 
+            else { d.className = `flex gap-4 w-full mb-2`; d.innerHTML = `<div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs shrink-0">AI</div><div class="bg-white border border-slate-200 p-5 rounded-2xl rounded-tl-none max-w-[85%] text-sm shadow-sm overflow-x-auto">${txt}</div>`; }
+            b.appendChild(d); b.scrollTop=b.scrollHeight;
+        }
+
+        // --- 7. STARTUP ---
+        function startApp(){ 
+            applyLanguage(); rendAll(); fetchKurs(); 
+            setInterval(fetchKurs, 3600000); 
+            setInterval(() => document.getElementById('clock').innerText = new Date().toLocaleTimeString('id-ID'), 1000); 
+        }
+
+        // Trigger Onboarding or Login
+        applyLanguage();
+        checkOnboarding(); 
+
+        if(user){ 
+            document.getElementById('auth-screen').style.display='none'; 
+            document.getElementById('app-wrapper').style.display='flex'; 
+            document.getElementById('app-wrapper').classList.remove('hidden');
+            
+            document.getElementById('api-key').value = localStorage.getItem('y_gemini_key') || "";
+            document.getElementById('set-toko').value = conf.toko;
+            document.getElementById('set-email').value = conf.email;
+            document.getElementById('set-api-email').value = conf.apiEmail;
+            startApp(); 
+        }
+
+        document.getElementById('api-key').addEventListener('input', function(){ localStorage.setItem('y_gemini_key', this.value); });
+        document.getElementById('set-api-email').addEventListener('input', function(){ conf.apiEmail = this.value; localStorage.setItem('y_conf', JSON.stringify(conf)); });
+        document.getElementById('set-email').addEventListener('input', function(){ conf.email = this.value; localStorage.setItem('y_conf', JSON.stringify(conf)); });
+        document.getElementById('set-toko').addEventListener('input', function(){ conf.toko = this.value; localStorage.setItem('y_conf', JSON.stringify(conf)); });
+
+    </script>
+</body>
+</html>
